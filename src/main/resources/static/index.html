@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Student Management</title>
+  <style>
+    body { font-family: Arial; margin: 20px; }
+    input { padding: 8px; margin: 5px; width: 240px; }
+    button { padding: 9px 14px; margin: 5px; cursor: pointer; }
+    table { border-collapse: collapse; width: 100%; margin-top: 15px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background: #f2f2f2; }
+    .msg { margin-top: 10px; font-weight: bold; }
+    .rowbtn { padding: 6px 10px; }
+    .danger { background: #ffdddd; border: 1px solid #ff8080; }
+    .ok { background: #ddffdd; border: 1px solid #66cc66; }
+  </style>
+</head>
+<body>
+
+<h2>Student Management System (CRUD UI)</h2>
+
+<h3>Form</h3>
+
+<!-- hidden id for update -->
+<input id="id" placeholder="ID (auto)" disabled />
+
+<br/>
+<input id="name" placeholder="Name" />
+<input id="email" placeholder="Email" />
+<input id="phone" placeholder="Phone" />
+<input id="course" placeholder="Course" />
+<input id="age" type="number" placeholder="Age" />
+
+<br/>
+<button onclick="createStudent()">Create</button>
+<button onclick="updateStudent()">Update</button>
+<button onclick="resetForm()">Reset</button>
+<button onclick="loadStudents()">Refresh List</button>
+
+<div class="msg" id="msg"></div>
+
+<hr/>
+
+<h3>Search / Get</h3>
+<input id="searchName" placeholder="Search by name" />
+<button onclick="searchByName()">Search</button>
+
+<input id="searchId" placeholder="Get by ID" />
+<button onclick="getById()">Get</button>
+
+<button onclick="loadStudents()">Show All</button>
+
+<h3>Students List</h3>
+<table>
+  <thead>
+    <tr>
+      <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Course</th><th>Age</th><th>Actions</th>
+    </tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
+
+<script>
+const BASE_URL = "http://localhost:8080/api/students";
+
+function setMsg(text, type="ok") {
+  const m = document.getElementById("msg");
+  m.innerText = text;
+  m.className = "msg " + (type === "danger" ? "danger" : "ok");
+}
+
+function getFormData() {
+  return {
+    name: document.getElementById("name").value.trim(),
+    email: document.getElementById("email").value.trim(),
+    phone: document.getElementById("phone").value.trim(),
+    course: document.getElementById("course").value.trim(),
+    age: Number(document.getElementById("age").value)
+  };
+}
+
+function fillForm(s) {
+  document.getElementById("id").value = s.id ?? "";
+  document.getElementById("name").value = s.name ?? "";
+  document.getElementById("email").value = s.email ?? "";
+  document.getElementById("phone").value = s.phone ?? "";
+  document.getElementById("course").value = s.course ?? "";
+  document.getElementById("age").value = s.age ?? "";
+}
+
+function resetForm() {
+  fillForm({id:"", name:"", email:"", phone:"", course:"", age:""});
+  setMsg("Form reset ✅");
+}
+
+function renderTable(data) {
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = "";
+
+  data.forEach(s => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${s.id}</td>
+      <td>${s.name ?? ""}</td>
+      <td>${s.email ?? ""}</td>
+      <td>${s.phone ?? ""}</td>
+      <td>${s.course ?? ""}</td>
+      <td>${s.age ?? ""}</td>
+      <td>
+        <button class="rowbtn" onclick='selectForEdit(${JSON.stringify(s)})'>Edit</button>
+        <button class="rowbtn" onclick='deleteStudent(${s.id})'>Delete</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function selectForEdit(studentObj) {
+  fillForm(studentObj);
+  setMsg("Selected for update ✅ (Now click Update)");
+}
+
+async function loadStudents() {
+  try {
+    const res = await fetch(BASE_URL);
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    renderTable(data);
+    setMsg("Loaded all students ✅");
+  } catch (e) {
+    setMsg("Load failed: " + e.message, "danger");
+  }
+}
+
+async function createStudent() {
+  try {
+    const student = getFormData();
+
+    const res = await fetch(BASE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(student)
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+
+    const saved = await res.json();
+    fillForm(saved);
+    setMsg("Student created ✅ ID: " + saved.id);
+    loadStudents();
+  } catch (e) {
+    setMsg("Create failed: " + e.message, "danger");
+  }
+}
+
+async function updateStudent() {
+  try {
+    const id = document.getElementById("id").value;
+    if (!id) {
+      setMsg("Please select a student (Edit) first ✅", "danger");
+      return;
+    }
+
+    const student = getFormData();
+
+    const res = await fetch(`${BASE_URL}/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(student)
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+
+    const updated = await res.json();
+    fillForm(updated);
+    setMsg("Student updated ✅ ID: " + updated.id);
+    loadStudents();
+  } catch (e) {
+    setMsg("Update failed: " + e.message, "danger");
+  }
+}
+
+async function deleteStudent(id) {
+  try {
+    if (!confirm("Delete student id " + id + " ?")) return;
+
+    const res = await fetch(`${BASE_URL}/${id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error(await res.text());
+
+    setMsg("Deleted ✅ ID: " + id);
+    resetForm();
+    loadStudents();
+  } catch (e) {
+    setMsg("Delete failed: " + e.message, "danger");
+  }
+}
+
+async function searchByName() {
+  try {
+    const name = document.getElementById("searchName").value.trim();
+    if (!name) {
+      setMsg("Enter name to search", "danger");
+      return;
+    }
+
+    const res = await fetch(`${BASE_URL}/search?name=${encodeURIComponent(name)}`);
+    if (!res.ok) throw new Error(await res.text());
+
+    const data = await res.json();
+    renderTable(data);
+    setMsg("Search results ✅ count: " + data.length);
+  } catch (e) {
+    setMsg("Search failed: " + e.message, "danger");
+  }
+}
+
+async function getById() {
+  try {
+    const id = document.getElementById("searchId").value.trim();
+    if (!id) {
+      setMsg("Enter ID", "danger");
+      return;
+    }
+
+    const res = await fetch(`${BASE_URL}/${id}`);
+    if (!res.ok) throw new Error(await res.text());
+
+    const s = await res.json();
+    renderTable([s]);
+    fillForm(s);
+    setMsg("Fetched student ✅ ID: " + s.id);
+  } catch (e) {
+    setMsg("Get by ID failed: " + e.message, "danger");
+  }
+}
+
+loadStudents();
+</script>
+
+</body>
+</html>
